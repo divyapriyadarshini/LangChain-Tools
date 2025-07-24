@@ -4,7 +4,6 @@ from crewai.tools import tool
 from dotenv import load_dotenv
 from langchain_community.tools.yahoo_finance_news import YahooFinanceNewsTool
 
-
 load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -55,7 +54,7 @@ def create_finance_analyst(llm):
         allow_delegation=False
     )
 
-def create_analysis_task(ticker="AAPL"):
+def create_analysis_task(ticker):
     return Task(
         description=(
             f"Search for the latest financial news about {ticker.upper()} and provide "
@@ -74,6 +73,19 @@ def create_analysis_task(ticker="AAPL"):
         agent=None
     )
 
+def get_user_input():
+    """Get ticker symbol from user"""
+    print("Yahoo Finance News Analysis Tool")
+    print("=" * 40)
+    
+    # Get ticker symbol
+    ticker = input("Enter ticker symbol to analyze: ").strip()
+    if not ticker:
+        print("⚠️ No ticker entered. Using default: AAPL")
+        ticker = "AAPL"
+    
+    return ticker.upper()
+
 def check_dependencies():
     missing_deps = []
     
@@ -91,13 +103,12 @@ def check_dependencies():
 
 def main():
     if not GEMINI_API_KEY:
-        print("⚠️  Please set your GEMINI_API_KEY environment variable")
+        print("⚠️ Please set your GEMINI_API_KEY environment variable")
         return
-    
 
     missing_deps = check_dependencies()
     if missing_deps:
-        print("⚠️  Missing required dependencies:")
+        print("⚠️ Missing required dependencies:")
         for dep in missing_deps:
             print(f"   - {dep}")
         print("\nTo install missing dependencies, run:")
@@ -107,7 +118,10 @@ def main():
             print("pip install langchain-community")
         return
     
-    print("Starting Yahoo Finance News Analysis")
+    # Get user input
+    ticker = get_user_input()
+    
+    print(f"\n🚀 Starting Yahoo Finance News Analysis for {ticker}")
     
     # Setup Gemini LLM
     gemini_llm = setup_gemini_llm()
@@ -117,8 +131,8 @@ def main():
     analyst = create_finance_analyst(gemini_llm)
     print("✅ Financial news analyst agent created")
     
-    # Create task 
-    analysis_task = create_analysis_task("AAPL")  
+    # Create task with user input
+    analysis_task = create_analysis_task(ticker)
     analysis_task.agent = analyst
     print("✅ Financial analysis task configured")
     
@@ -129,13 +143,11 @@ def main():
         verbose=True
     )
     
-    print("\n💰 Executing Yahoo Finance news search...")
+    print(f"\n💰 Executing Yahoo Finance news search for {ticker}...")
     print("=" * 50)
-    
 
     result = crew.kickoff()
     print(result)
-        
 
 def run():
     """Alternative entry point for crewai run command"""
@@ -143,3 +155,4 @@ def run():
 
 if __name__ == "__main__":
     main()
+

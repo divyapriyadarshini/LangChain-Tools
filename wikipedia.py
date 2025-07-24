@@ -4,7 +4,6 @@ from crewai.tools import tool
 from dotenv import load_dotenv
 from langchain_community.tools import WikipediaQueryRun
 from langchain_community.utilities import WikipediaAPIWrapper
-        
 
 load_dotenv()
 
@@ -21,6 +20,8 @@ def setup_gemini_llm():
 @tool("Wikipedia Search")
 def search_wikipedia(query: str) -> str:
     """
+    Search Wikipedia for information on a topic.
+    
     Args:
         query: Topic or keyword to search for on Wikipedia
     Returns:
@@ -36,7 +37,7 @@ def search_wikipedia(query: str) -> str:
         result = wikipedia_tool.run(query)
         
         if not result or "No good Wikipedia Search Result was found" in result:
-            return f"No Wikipedia articles found for '{query}'. Please try a different search term or check spelling."
+            return f"No Wikipedia articles found for '{query}'. Please try a different search term."
         
         return result
     
@@ -50,8 +51,7 @@ def create_wikipedia_researcher(llm):
         backstory=(
             "You are an expert researcher with access to Wikipedia's vast knowledge base. "
             "You excel at finding relevant information, summarizing complex topics, "
-            "and providing well-structured, factual responses. You understand how to "
-            "interpret Wikipedia content and extract the most important insights for users."
+            "and providing well-structured, factual responses based on Wikipedia content."
         ),
         tools=[search_wikipedia],
         llm=llm,
@@ -59,13 +59,12 @@ def create_wikipedia_researcher(llm):
         allow_delegation=False
     )
 
-def create_research_task(topic="artificial intelligence"):
+def create_research_task(topic):
     return Task(
         description=(
             f"Research '{topic}' using Wikipedia and provide a comprehensive overview. "
             f"Include key concepts, historical background, current developments, and "
-            f"important details. Organize the information in a clear, structured format "
-            f"that would be helpful for someone learning about this topic."
+            f"important details. Organize the information in a clear, structured format."
         ),
         expected_output=(
             f"A comprehensive research report on '{topic}' including:\n"
@@ -79,67 +78,73 @@ def create_research_task(topic="artificial intelligence"):
         agent=None
     )
 
-def check_dependencies():
-    missing_deps = []
+def check_requirements():
+    # Check API key
+    if not GEMINI_API_KEY:
+        print("❌ Missing GEMINI_API_KEY environment variable")
+        print("Create a .env file with: GEMINI_API_KEY=your_api_key_here")
+        return False
     
+    # Check dependencies
     try:
         import wikipedia
         wikipedia.search("test", results=1)
     except ImportError:
-        missing_deps.append("wikipedia")
+        print("❌ Missing dependency: wikipedia")
+        print("Install with: pip install wikipedia")
+        return False
     except Exception:
-        pass
+        pass  # This is expected - just testing if the module imports
     
-    return missing_deps
+    return True
 
 def main():
-    if not GEMINI_API_KEY:
-        print("⚠️  Please set your GEMINI_API_KEY environment variable")
+    if not check_requirements():
         return
     
-
-    missing_deps = check_dependencies()
-    if missing_deps:
-        print("⚠️  Missing required dependencies:")
-        for dep in missing_deps:
-            print(f"   - {dep}")
-        print("\nTo install missing dependencies, run:")
-        print("pip install wikipedia")
-        return
+    print("📚 Wikipedia Research Tool")
+    print("=" * 30)
     
-    print("🚀 Starting Wikipedia Research with Gemini 2.5 Flash...")
-    
-    # Setup Gemini LLM
-    gemini_llm = setup_gemini_llm()
-    print("✅ Gemini LLM configured")
-    
-    # Create agent
-    researcher = create_wikipedia_researcher(gemini_llm)
-    print("✅ Wikipedia researcher agent created")
-    
-    # Create task 
-    research_task = create_research_task("machine learning")
-    research_task.agent = researcher
-    print("✅ Research task configured")
-    
-    # Create and run crew
-    crew = Crew(
-        agents=[researcher],
-        tasks=[research_task],
-        verbose=True
-    )
-    
-    print("\n📚 Executing Wikipedia research...")
-    print("=" * 50)
-    
- 
-    result = crew.kickoff()
-    print("\n" + "=" * 50)
-    print("📖 WIKIPEDIA RESEARCH RESULTS")
-    print("=" * 50)
-    print(result)
+    try:
+        # Setup AI
+        llm = setup_gemini_llm()
+        agent = create_wikipedia_researcher(llm)
         
-    
+        while True:
+            # Get user input
+            topic = input("\n🔍 Enter topic to research (or 'exit' to quit): ").strip()
+            
+            if topic.lower() in ['exit', 'quit', 'q']:
+                print("👋 Goodbye!")
+                break
+                
+            if not topic:
+                print("❌ Please enter a topic.")
+                continue
+            
+            print(f"\n🚀 Researching: '{topic}'...")
+            print("-" * 30)
+            
+            # Create and run task
+            task = create_research_task(topic)
+            task.agent = agent
+            
+            crew = Crew(
+                agents=[agent],
+                tasks=[task],
+                verbose=False
+            )
+            
+            result = crew.kickoff()
+            print("\n" + "=" * 30)
+            print("📖 RESEARCH RESULTS:")
+            print("=" * 30)
+            print(result)
+            print("=" * 30)
+            
+    except Exception as e:
+        print(f"❌ Error: {e}")
+
 def run():
     """Alternative entry point for crewai run command"""
     main()

@@ -1,9 +1,9 @@
+#!/usr/bin/env python3
 import os
 from crewai import Agent, Task, Crew, LLM
 from crewai.tools import tool
 from dotenv import load_dotenv
 from langchain_community.utilities.wolfram_alpha import WolframAlphaAPIWrapper
-             
 
 load_dotenv()
 
@@ -21,6 +21,8 @@ def setup_gemini_llm():
 @tool("Wolfram Alpha Calculator")
 def wolfram_alpha_query(query: str) -> str:
     """
+    Solve mathematical problems using Wolfram Alpha.
+    
     Args:
         query: Mathematical expression, scientific question, or factual query
     Returns:
@@ -31,7 +33,7 @@ def wolfram_alpha_query(query: str) -> str:
         result = wolfram.run(query)
         
         if not result or result.strip() == "":
-            return f"Wolfram Alpha could not compute an answer for: '{query}'. Please try rephrasing your question or check if it's a valid mathematical/scientific query."
+            return f"Wolfram Alpha could not compute an answer for: '{query}'. Please try rephrasing your question."
         
         return result
         
@@ -46,8 +48,7 @@ def create_computational_expert(llm):
             "You are a brilliant computational mathematician and scientist with access "
             "to Wolfram Alpha's vast computational knowledge. You excel at solving "
             "complex mathematical equations, performing scientific calculations, "
-            "analyzing data, and providing accurate factual information across "
-            "mathematics, physics, chemistry, engineering, and other STEM fields."
+            "and providing accurate factual information across STEM fields."
         ),
         tools=[wolfram_alpha_query],
         llm=llm,
@@ -55,27 +56,43 @@ def create_computational_expert(llm):
         allow_delegation=False
     )
 
-def create_computation_task(query="What is the derivative of x^3 + 2x^2 - 5x + 1?"):
+def create_computation_task(query):
     return Task(
         description=(
             f"Use Wolfram Alpha to solve this query: '{query}'. "
             f"Provide a comprehensive explanation of the result, including any "
-            f"relevant mathematical concepts, steps involved, or contextual information. "
-            f"If the query involves multiple parts or interpretations, address them all."
+            f"relevant mathematical concepts, steps involved, or contextual information."
         ),
         expected_output=(
             f"A detailed solution for '{query}' including:\n"
             "- The computed result from Wolfram Alpha\n"
             "- Explanation of the mathematical/scientific concepts involved\n"
             "- Step-by-step breakdown if applicable\n"
-            "- Any relevant additional insights or related information"
+            "- Any relevant additional insights"
         ),
         agent=None
     )
 
-def check_dependencies():
-    missing_deps = []
+def check_requirements():
+    # Check API keys
+    missing = []
+    if not GEMINI_API_KEY:
+        missing.append("GEMINI_API_KEY")
+    if not WOLFRAM_ALPHA_APPID:
+        missing.append("WOLFRAM_ALPHA_APPID")
     
+    if missing:
+        print("❌ Missing environment variables:")
+        for var in missing:
+            print(f"   - {var}")
+        if "WOLFRAM_ALPHA_APPID" in missing:
+            print("Get your Wolfram Alpha APP ID from:")
+            print("https://developer.wolframalpha.com/portal/myapps")
+        print("Create a .env file with these variables.")
+        return False
+    
+    # Check dependencies
+    missing_deps = []
     try:
         import wolframalpha
     except ImportError:
@@ -86,61 +103,62 @@ def check_dependencies():
     except ImportError:
         missing_deps.append("langchain-community")
     
-    return missing_deps
-
-def main():
-    if not GEMINI_API_KEY:
-        print("⚠️  Please set your GEMINI_API_KEY environment variable")
-        return
-    
-    if not WOLFRAM_ALPHA_APPID:
-        print("⚠️  Please set your WOLFRAM_ALPHA_APPID environment variable")
-        print("Get your APP ID from: https://developer.wolframalpha.com/portal/myapps")
-        return
-    
- 
-    missing_deps = check_dependencies()
     if missing_deps:
-        print("⚠️  Missing required dependencies:")
+        print("❌ Missing dependencies:")
         for dep in missing_deps:
             print(f"   - {dep}")
-        print("\nTo install missing dependencies, run:")
-        if "wolframalpha" in missing_deps:
-            print("pip install wolframalpha")
-        if "langchain-community" in missing_deps:
-            print("pip install langchain-community")
+        print("Install with: pip install wolframalpha langchain-community")
+        return False
+    
+    return True
+
+def main():
+    if not check_requirements():
         return
     
-    print("🚀 Starting Wolfram Alpha Computation with Gemini 2.5 Flash...")
+    print("🧮 Wolfram Alpha Mathematical Calculator")
+    print("=" * 40)
     
-    # Setup Gemini LLM
-    gemini_llm = setup_gemini_llm()
-    print("✅ Gemini 2.5 Flash LLM configured")
-    
-    # Create agent
-    expert = create_computational_expert(gemini_llm)
-    print("✅ Computational expert agent created")
-    
-    # Create task 
-    computation_task = create_computation_task("solve 2*x + 5 = -3*x + 7")
-    computation_task.agent = expert
-    print("✅ Computation task configured")
-    
-    # Create and run crew
-    crew = Crew(
-        agents=[expert],
-        tasks=[computation_task],
-        verbose=True
-    )
-    
-    print("\n🧮 Executing Wolfram Alpha computation...")
-    print("=" * 50)
-    
-
-    result = crew.kickoff()
-    print("=" * 50)
-    print(result)
+    try:
+        # Setup AI
+        llm = setup_gemini_llm()
+        agent = create_computational_expert(llm)
         
+        while True:
+            # Get user input
+            math_question = input("\n🔢 Enter your math question (or 'exit' to quit): ").strip()
+            
+            if math_question.lower() in ['exit', 'quit', 'q']:
+                print("👋 Goodbye!")
+                break
+                
+            if not math_question:
+                print("❌ Please enter a math question.")
+                continue
+            
+            print(f"\n🚀 Solving: '{math_question}'...")
+            print("-" * 40)
+            
+            # Create and run task
+            task = create_computation_task(math_question)
+            task.agent = agent
+            
+            crew = Crew(
+                agents=[agent],
+                tasks=[task],
+                verbose=False
+            )
+            
+            result = crew.kickoff()
+            print("\n" + "=" * 40)
+            print("📊 SOLUTION:")
+            print("=" * 40)
+            print(result)
+            print("=" * 40)
+            
+    except Exception as e:
+        print(f"❌ Error: {e}")
+
 def run():
     """Alternative entry point for crewai run command"""
     main()

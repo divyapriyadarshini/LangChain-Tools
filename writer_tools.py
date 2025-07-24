@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import os
 from crewai import Agent, Task, Crew, LLM
 from crewai.tools import tool
@@ -5,8 +6,6 @@ from dotenv import load_dotenv
 from langchain_writer.tools import GraphTool
 from langchain_writer import ChatWriter
 from langchain_writer.tools import NoCodeAppTool
-        
-
 
 load_dotenv()
 
@@ -24,6 +23,8 @@ def setup_gemini_llm():
 @tool("Writer Knowledge Graph Search")
 def search_knowledge_graph(query: str, graph_id: str = None) -> str:
     """
+    Search the Writer Knowledge Graph for information.
+    
     Args:
         query: Search query for the knowledge graph
         graph_id: Optional graph ID (will use environment variable if not provided)
@@ -35,7 +36,7 @@ def search_knowledge_graph(query: str, graph_id: str = None) -> str:
             graph_id = os.getenv("WRITER_GRAPH_ID")
             
         if not graph_id:
-            return "Error: No graph ID provided. Set WRITER_GRAPH_ID environment variable or pass graph_id parameter."
+            return "Error: No graph ID provided. Set WRITER_GRAPH_ID environment variable."
         
         graph_tool = GraphTool(graph_ids=[graph_id])
         return graph_tool.invoke(query)
@@ -46,6 +47,8 @@ def search_knowledge_graph(query: str, graph_id: str = None) -> str:
 @tool("Writer Chat Completion")
 def writer_chat_completion(prompt: str, model: str = "palmyra-x5") -> str:
     """
+    Generate text using Writer's chat models.
+    
     Args:
         prompt: Text prompt for generation
         model: Writer model to use (default: palmyra-x5)
@@ -70,6 +73,8 @@ def writer_chat_completion(prompt: str, model: str = "palmyra-x5") -> str:
 @tool("Writer NoCode App")
 def use_nocode_app(query: str, app_id: str = None) -> str:
     """
+    Use Writer's no-code application.
+    
     Args:
         query: Input for the no-code application
         app_id: No-code app ID (will use environment variable if not provided)
@@ -81,7 +86,7 @@ def use_nocode_app(query: str, app_id: str = None) -> str:
             app_id = os.getenv("WRITER_APP_ID")
             
         if not app_id:
-            return "Error: No app ID provided. Set WRITER_APP_ID environment variable or pass app_id parameter."
+            return "Error: No app ID provided. Set WRITER_APP_ID environment variable."
         
         app_tool = NoCodeAppTool(
             app_id=app_id,
@@ -113,88 +118,126 @@ def create_writer_specialist(llm):
         allow_delegation=False
     )
 
-def create_writer_task(task_type="knowledge_search", query="artificial intelligence"):
+def create_writer_task(task_type, query):
     task_descriptions = {
-        "knowledge_search": f"Use the Writer Knowledge Graph to find comprehensive information about '{query}'. Provide detailed insights and analysis.",
-        "text_generation": f"Use Writer's chat models to generate high-quality content about '{query}'. Focus on accuracy and engagement.",
-        "nocode_app": f"Use Writer's no-code application to process '{query}' and provide specialized results.",
-        "comprehensive": f"Research '{query}' using all available Writer tools - knowledge graph, chat models, and no-code apps. Provide a comprehensive analysis."
+        "knowledge": f"Use the Writer Knowledge Graph to find comprehensive information about '{query}'. Provide detailed insights and analysis.",
+        "generate": f"Use Writer's chat models to generate high-quality content about '{query}'. Focus on accuracy and engagement.",
+        "nocode": f"Use Writer's no-code application to process '{query}' and provide specialized results.",
+        "all": f"Research '{query}' using all available Writer tools - knowledge graph, chat models, and no-code apps. Provide a comprehensive analysis."
     }
     
     expected_outputs = {
-        "knowledge_search": "Detailed information from Writer's Knowledge Graph with key insights and references",
-        "text_generation": "High-quality generated content using Writer's advanced language models",
-        "nocode_app": "Specialized results from Writer's no-code application processing",
-        "comprehensive": "Comprehensive analysis using multiple Writer tools with comparative insights"
+        "knowledge": "Detailed information from Writer's Knowledge Graph with key insights and references",
+        "generate": "High-quality generated content using Writer's advanced language models",
+        "nocode": "Specialized results from Writer's no-code application processing",
+        "all": "Comprehensive analysis using multiple Writer tools with comparative insights"
     }
     
     return Task(
-        description=task_descriptions.get(task_type, task_descriptions["comprehensive"]),
-        expected_output=expected_outputs.get(task_type, expected_outputs["comprehensive"]),
+        description=task_descriptions.get(task_type, task_descriptions["generate"]),
+        expected_output=expected_outputs.get(task_type, expected_outputs["generate"]),
         agent=None
     )
 
-def check_dependencies():
-    missing_deps = []
+def get_task_type():
+    print("\nChoose task type:")
+    print("1. 📚 Knowledge Graph Search")
+    print("2. ✍️  Text Generation") 
+    print("3. 🛠️  NoCode App")
+    print("4. 🔍 All Tools")
     
+    while True:
+        try:
+            choice = int(input("\nEnter choice (1-4): "))
+            if choice == 1:
+                return "knowledge"
+            elif choice == 2:
+                return "generate"
+            elif choice == 3:
+                return "nocode"
+            elif choice == 4:
+                return "all"
+            else:
+                print("❌ Please enter 1, 2, 3, or 4")
+        except ValueError:
+            print("❌ Please enter a valid number")
+
+def check_requirements():
+    # Check API keys
+    missing = []
+    if not GEMINI_API_KEY:
+        missing.append("GEMINI_API_KEY")
+    if not WRITER_API_KEY:
+        missing.append("WRITER_API_KEY")
+    
+    if missing:
+        print("❌ Missing environment variables:")
+        for var in missing:
+            print(f"   - {var}")
+        if "WRITER_API_KEY" in missing:
+            print("Get your Writer API key from: https://writer.com/")
+        print("Create a .env file with these variables.")
+        return False
+    
+    # Check dependencies
     try:
         import langchain_writer
     except ImportError:
-        missing_deps.append("langchain-writer")
+        print("❌ Missing dependency: langchain-writer")
+        print("Install with: pip install langchain-writer")
+        return False
     
-    return missing_deps
+    return True
 
 def main():
-    if not GEMINI_API_KEY:
-        print("⚠️  Please set your GEMINI_API_KEY environment variable")
+    if not check_requirements():
         return
     
-    if not WRITER_API_KEY:
-        print("⚠️  Please set your WRITER_API_KEY environment variable")
-        print("Get your API key from: https://writer.com/")
-        return
+    print("🚀 Writer AI Tools")
+    print("=" * 30)
     
-    missing_deps = check_dependencies()
-    if missing_deps:
-        print("⚠️  Missing required dependencies:")
-        for dep in missing_deps:
-            print(f"   - {dep}")
-        print("\nTo install missing dependencies, run:")
-        print("pip install langchain-writer")
-        return
-    
-    print("🚀 Starting Writer AI Tools with Gemini 2.5 Flash...")
-    
-    # Setup Gemini LLM
-    gemini_llm = setup_gemini_llm()
-    print("✅ Gemini 2.5 Flash LLM configured")
-    
-    # Create agent
-    specialist = create_writer_specialist(gemini_llm)
-    print("✅ Writer AI specialist agent created")
-    
-    # Create task - you can change the task type and query here
-    writer_task = create_writer_task("text_generation", "future of artificial intelligence")
-    writer_task.agent = specialist
-    print("✅ Writer task configured")
-    
-    # Create and run crew
-    crew = Crew(
-        agents=[specialist],
-        tasks=[writer_task],
-        verbose=True
-    )
-    
-    print("\n✍️  Executing Writer AI tools...")
-    print("=" * 50)
-    
-
-    result = crew.kickoff()
-    print(result)
-
-def run():
-    """Alternative entry point for crewai run command"""
-    main()
+    try:
+        # Setup AI
+        llm = setup_gemini_llm()
+        agent = create_writer_specialist(llm)
+        
+        while True:
+            # Get user input
+            prompt = input("\n✍️  Enter your prompt (or 'exit' to quit): ").strip()
+            
+            if prompt.lower() in ['exit', 'quit', 'q']:
+                print("👋 Goodbye!")
+                break
+                
+            if not prompt:
+                print("❌ Please enter a prompt.")
+                continue
+            
+            # Get task type
+            task_type = get_task_type()
+            
+            print(f"\n🚀 Processing with Writer AI: '{prompt}'...")
+            print("-" * 30)
+            
+            # Create and run task
+            task = create_writer_task(task_type, prompt)
+            task.agent = agent
+            
+            crew = Crew(
+                agents=[agent],
+                tasks=[task],
+                verbose=False
+            )
+            
+            result = crew.kickoff()
+            print("\n" + "=" * 30)
+            print("📄 RESULT:")
+            print("=" * 30)
+            print(result)
+            print("=" * 30)
+            
+    except Exception as e:
+        print(f"❌ Error: {e}")
 
 if __name__ == "__main__":
     main()
