@@ -19,3 +19,11 @@ mediawikiapi
 langchain-vectara
 
 requests
+
+gradio_tools
+
+google-search-results
+
+asknews
+
+langchain-apify
